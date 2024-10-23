@@ -5,6 +5,16 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenMP REQUIRED)
 
-add_executable(PC_challenge main.cpp)
+file(
+        GLOB_RECURSE mains RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+)
 
-target_link_libraries(PC_challenge PRIVATE OpenMP::OpenMP_CXX)
+
+foreach (mainfile IN LISTS mains)
+    # Get file name without directory
+    get_filename_component(mainname ${mainfile} NAME_WE)
+    add_executable(${mainname} ${mainfile})
+    target_link_libraries(${mainname} PRIVATE OpenMP::OpenMP_CXX)
+    target_compile_options(${mainname} PRIVATE -O3)
+endforeach ()
