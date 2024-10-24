@@ -65,44 +65,14 @@ void MsMergeSequential(int *out, const int *in, long begin1, long end1, long beg
 /// @param outBegin  begin of the output array
 /// @param deep  recursion depth
 void MsMergeParallel(int *out, int *in, long begin1, long end1, long begin2, long end2, long outBegin, int deep) {
-    // add cutoff for small arrays
-    if (end1 - begin1 + end2 - begin2 < 1000) {
-        MsMergeSequential(out, in, begin1, end1, begin2, end2, outBegin);
-        return;
-    }
-
     if (deep) {
-        long half1, half2, tmp, count, step;
+        long half1, half2;
         if (end1 - begin1 < end2 - begin2) {
             half2 = (begin2 + end2) / 2;
-            // find in[half2] in [begin1, end1) (std::upper_bound)
-            half1 = begin1, count = (end1 - begin1);
-            while (count > 0) {
-                step = count / 2;
-                tmp = half1 + step;
-                if (in[tmp] <= in[half2]) {
-                    tmp++;
-                    half1 = tmp;
-                    count -= step + 1;
-                } else {
-                    count = step;
-                }
-            }
+            half1 = std::upper_bound(in + begin1, in + end1, in[half2]) - in;
         } else {
             half1 = (begin1 + end1) / 2;
-            // find in[half1] in [begin2, end2) (std::lower_bound)
-            half2 = begin2, count = (end2 - begin2);
-            while (count > 0) {
-                step = count / 2;
-                tmp = half2 + step;
-                if (in[tmp] < in[half1]) {
-                    tmp++;
-                    half2 = tmp;
-                    count -= step + 1;
-                } else {
-                    count = step;
-                }
-            }
+            half2 = std::upper_bound(in + begin2, in + end2, in[half1]) - in;
         }
 
         #pragma omp task default(none) \
@@ -156,6 +126,11 @@ void MsSequential(int *array, int *tmp, bool inplace, long begin, long end) {
 /// @param end  end of the array
 /// @param deep  recursion depth
 void MsParallel(int *array, int *tmp, bool inplace, long begin, long end, int deep) {
+    // add cutoff for small arrays
+    if (end - begin < 800) {
+        MsSequential(array, tmp, inplace, begin, end);
+        return;
+    }
     if (begin < end - 1) {
         long half = (begin + end) / 2;
         if (deep) {
@@ -163,7 +138,7 @@ void MsParallel(int *array, int *tmp, bool inplace, long begin, long end, int de
                         shared(array, tmp) \
                         shared(half, begin, end) \
                         shared(deep) \
-                        firstprivate(inplace)
+                        shared(inplace)
             {
                 MsParallel(array, tmp, !inplace, begin, half, deep - 1);
             }
@@ -171,7 +146,7 @@ void MsParallel(int *array, int *tmp, bool inplace, long begin, long end, int de
                 shared(array, tmp) \
                 shared(half, begin, end) \
                 shared(deep) \
-                firstprivate(inplace)
+                shared(inplace)
             {
                 MsParallel(array, tmp, !inplace, half, end, deep - 1);
             }
@@ -273,9 +248,9 @@ void writeResultsToCSV(const std::vector<TestResult>& results, const std::string
 int main() {
     std::vector<TestResult> all_results;
     std::vector<size_t> sizes;
-    const std::vector depths = {5, 8, 10, 12, 15};
+    const std::vector depths = {5, 8, 10};
 
-    for (int i = 2; i <= 8; ++i) {
+    for (int i = 3; i <= 8; ++i) {
         sizes.push_back(static_cast<size_t>(std::pow(10, i)));
     }
 
